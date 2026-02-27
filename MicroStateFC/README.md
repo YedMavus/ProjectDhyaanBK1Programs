@@ -2,7 +2,7 @@ Contains programs and modifications done by Group 7 for the Neural Signal Proces
 Authors:
 
 
-Anatap Mitra
+Anatap Mitra (24168)
 
 Ramya Sree Galanki
 
