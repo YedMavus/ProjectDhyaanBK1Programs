@@ -17,4 +17,5 @@ Microstate Clustering: Anatap
 PSD and FC Computation: Ramya
 Analysis: Suvam, Anatap, Ramya
 
-c:\Users\suvam\Downloads\NSP_Proj_Proposal.drawio.png
+
+<img width="1044" height="485" alt="NSP_Proj_Proposal drawio" src="https://github.com/user-attachments/assets/42f078b6-8c0e-4dd2-9946-f577bbdd32be" />
