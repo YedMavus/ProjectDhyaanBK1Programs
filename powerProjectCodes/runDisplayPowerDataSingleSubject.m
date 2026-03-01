@@ -2,7 +2,7 @@ clear;
 
 [allSubjectNames,expDateList] = getDemographicDetails('BK1');
 [goodSubjectList, meditatorList, controlList] = getGoodSubjectsBK1;
-folderSourceString = 'N:\Projects\ProjectDhyaan\BK1';
+folderSourceString = "E:\Supratim_Ray_Files";
 saveFolderName = 'powerResultsSingleSubject';
 
 saveFileFlag     = 1;
