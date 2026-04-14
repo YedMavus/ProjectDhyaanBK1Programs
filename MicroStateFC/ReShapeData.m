@@ -1,5 +1,7 @@
-basePath   = 'E:\Supratim_Ray_Files\data\segmentedData';
-outputBase = 'D:\NSP1D_Data';
+
+
+basePath   = "/Volumes/Suvam's 1TB/Supratim_Ray_Files/Supratim Ray's files - segmentedData/";
+outputBase = "/Users/iacv/Desktop/NSP_2026/";
 
 experiments = {'G1','G2','M1','M2'};
 
@@ -37,7 +39,8 @@ for s = 1:length(subjects)
             end
             
             S = load(fileName,'analogData');
-            
+
+            fprintf('Loaded')
             % 120x2500 -> 1x300000 (preserve time order)
             singleSignal = reshape(S.analogData.',1,[]);
             
