@@ -100,7 +100,7 @@ end
 finalPeaks = gfp(finalLocs);
 
 fprintf('Detected %d peaks; kept %d after 15%% rejection.\n', length(allLocs), length(finalLocs));
-%% 6. Microstate Clustering
+%% 6. Microstate Clustering 
 mapsAtPeaks = eegContinuous(:, finalLocs); 
 
 % Perform K-means clustering on the extracted peaks
