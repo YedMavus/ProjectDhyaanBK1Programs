@@ -104,29 +104,42 @@ fprintf('Detected %d peaks; kept %d after 15%% rejection.\n', length(allLocs), l
 mapsAtPeaks = eegContinuous(:, finalLocs); 
 
 % Perform K-means clustering on the extracted peaks
-numClusters = 4;
+numClusters = 5;
 fprintf('Clustering %d peaks into %d states...\n', length(finalLocs), numClusters);
 
 [clusterIdx, microstateMaps] = kmeans(mapsAtPeaks', numClusters, ...
-    'Distance', 'correlation', 'Replicates', 50);
+    'Distance', 'correlation', 'Replicates', 15, 'MaxIter',500);
 
-%% 7. Visualization
+%% 7. Visualization (Updated for 5 States)
 figure('Color', 'w', 'Name', ['Microstate Analysis: ' subjectName]);
 
-% Plot GFP Profile
-subplot(2, 4, 1:4);
+% Plot GFP Profile across the top row
+subplot(2, numClusters, 1:numClusters);
 plot(timeAxis, gfp, 'k', 'LineWidth', 1.2); hold on;
-plot(timeAxis(finalLocs), finalPeaks, 'ro', 'MarkerSize', 4);
-title('Global Field Potential (GFP) and Identified Peaks');
+plot(timeAxis(finalLocs), finalPeaks, 'ro', 'MarkerSize', 2);
+title(['GFP Peaks for Subject ' subjectName ' (Total Duration)']);
 xlabel('Time (s)'); ylabel('Amplitude (\muV)');
 grid on;
 
-% Plot Topographic Maps for the 4 Clusters
+% Plot Topographic Maps for the 5 Clusters in the bottom row
 for c = 1:numClusters
-    subplot(2, 4, 4 + c);
-    % Displays the electrode vector as a column; reshape if grid layout is known
+    subplot(2, numClusters, numClusters + c);
+    % Displays the electrode vector as a column
     imagesc(reshape(microstateMaps(c, :), [], 1)); 
     title(['State ' char(64+c)]);
     set(gca, 'XTick', [], 'YTick', []);
     colorbar;
 end
+%% 8. Save Microstate Results for Downstream PSD
+% Define the save filename
+saveFileName = fullfile(folderSegment, [subjectName '_' protocolName '_Microstates.mat']);
+
+% Variables to save:
+% microstateMaps: The 4 cluster centers (70 x 4)
+% clusterIdx: The label (1-4) for every identified peak
+% finalLocs: The time indices (samples) where those peaks occurred
+% numElectrodes, numSamples, numTrials: Metadata for reconstruction
+
+fprintf('Saving microstate results to: %s\n', saveFileName);
+save(saveFileName, 'microstateMaps', 'clusterIdx', 'finalLocs', ...
+    'subjectName', 'protocolName', 'numElectrodes', 'numTrials', 'numSamples');
