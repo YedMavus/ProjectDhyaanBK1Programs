@@ -62,7 +62,7 @@ cLimsTopo = axisRangeList{3};
 %%%%%%%%%%%%%%%%%%%%%%%% Get electrode groups %%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 gridType = 'EEG';
 capType = 'actiCap64_UOL';
-saveFolderName = 'savedData';
+saveFolderName = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 
 [electrodeGroupList,groupNameList] = getElectrodeGroups(gridType,capType);
 numGroups = length(electrodeGroupList);
@@ -320,7 +320,7 @@ for i=1:2
     for j=1:numSubjects
         subjectName = subjectNameLists{i}{j};
 
-        tmpData = load(fullfile(saveFolderName,[subjectName '_' badEyeCondition '_' badTrialVersion '_' num2str(1000*stRange(1)) '_' num2str(1000*stRange(2))]));
+        tmpData = load(fullfile(saveFolderName,[subjectName '/' badEyeCondition '/' badTrialVersion '/' num2str(1000*stRange(1)) '/' num2str(1000*stRange(2))]));
 
         if isempty(getPowerData(tmpData,protocolPos,analysisChoice,badElectrodeRejectionFlag,cutoffNumTrials))
             disp(['Not enough trials for subject: ' subjectName]);
@@ -379,7 +379,7 @@ for i=1:2
     for j=1:length(subjectNameLists{i})
         subjectName = subjectNameLists{i}{j};
 
-        tmpData = load(fullfile(saveFolderName,[subjectName '_' badEyeCondition '_' badTrialVersion '_' num2str(1000*stRange(1)) '_' num2str(1000*stRange(2))]));
+        tmpData = load(fullfile(saveFolderName,[subjectName '/' badEyeCondition '/' badTrialVersion '/' num2str(1000*stRange(1)) '/' num2str(1000*stRange(2))]));
         freqVals = tmpData.freqVals;
 
         tmpPower = getPowerData(tmpData,protocolPos,analysisChoice,badElectrodeRejectionFlag,cutoffNumTrials);

@@ -4,7 +4,7 @@ clc; clear all; close all;
 subjectName = '013AR';
 expDate = '280122'; 
 protocolName = 'G2';
-rootPath = '/Volumes/Suvam''s 1TB/Supratim_Ray_Files/Supratim Ray''s files - segmentedData';
+rootPath = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 folderSegment = fullfile(rootPath, subjectName, 'EEG', expDate, protocolName, 'segmentedData', 'LFP');
 
 %% 2. Define Frequency Bands
@@ -92,9 +92,13 @@ for b = 1:length(bands)
     end
     finalPeaks = gfp(finalLocs);
 
-    %% 4.4 Clustering
+    %% 4.4 Clustering (Using official Statistics Toolbox)
     mapsAtPeaks = eegContinuous(:, finalLocs); 
     numClusters = 5;
+    any(isnan(mapsAtPeaks(:)))
+    any(isinf(mapsAtPeaks(:)))
+
+    % This will now work correctly because we renamed the conflicting files
     [clusterIdx, microstateMaps] = kmeans(mapsAtPeaks', numClusters, ...
         'Distance', 'correlation', 'Replicates', 15, 'MaxIter', 500);
 

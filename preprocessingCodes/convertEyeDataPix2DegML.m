@@ -26,3 +26,4 @@ yPixelFromCenter = yPixelToConvert-(yResolution/2);
 eyeDataDegX = rad2deg(atan((xPixelFromCenter*xPixelsPerMM)/subjectDistance));
 eyeDataDegY = -rad2deg(atan((yPixelFromCenter*yPixelsPerMM)/subjectDistance)); % minus to flip the Y axis
 end
+

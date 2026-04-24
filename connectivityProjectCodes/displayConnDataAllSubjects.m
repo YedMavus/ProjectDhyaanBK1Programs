@@ -58,7 +58,7 @@ yLims = axisRangeList{2};
 % cLimsTopo = axisRangeList{3};
 capType = 'actiCap64_UOL';
 
-saveFolderName = 'savedData';
+saveFolderName = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 %%%%%%%%%%%%%%%%%%%%%%%%%%%% Generate plots %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 if displayDataFlag
     if isempty(hAllPlots)
