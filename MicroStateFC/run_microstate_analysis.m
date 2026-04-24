@@ -4,7 +4,7 @@ clc; clear; close all;
 rootPath = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 
 subjects = {'003S','013AR'};
-stages = {'M1','G1'};
+stages = {'EO1', 'EC1', 'G1', 'M1','G1','EO2', 'EC2', 'M2'};
 
 Fs = 1000;
 kRange = 2:10;

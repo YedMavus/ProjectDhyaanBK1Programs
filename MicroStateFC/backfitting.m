@@ -10,7 +10,7 @@ K = microstate.K;
 %% ===== CONFIG =====
 rootPath = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 subjects = {'003S','013AR'};
-stages = {'M1','G1','M2','G2'};
+stages = {'EO1', 'EC1', 'G1', 'M1','G1','EO2', 'EC2', 'M2'};
 
 Fs = 1000;
 minSamples = round(0.03 * Fs); % 30 ms
@@ -47,68 +47,68 @@ for s = 1:length(subjects)
     dates = dir(subjPath);
     dates = dates([dates.isdir] & ~startsWith({dates.name}, '.'));
     
-    for d = 1:length(dates)
+    
         
-        expDate = dates(d).name;
+    expDate = dates.name;
+    
+    for st = 1:length(stages)
         
-        for st = 1:length(stages)
-            
-            stage = stages{st};
-            
-            folderSegment = fullfile(rootPath, subjectName, ...
-                'EEG', expDate, stage, ...
-                'segmentedData','LFP');
-            
-            if ~exist(folderSegment,'dir'), continue; end
-            
-            %% ===== LOAD DATA =====
-            lfpInfo = load(fullfile(folderSegment,'lfpInfo.mat'));
-            electrodes = lfpInfo.analogChannelsStored;
-            numElectrodes = length(electrodes);
-            
-            tmp = load(fullfile(folderSegment, ['elec' num2str(electrodes(1)) '.mat']));
-            [numTrials, numSamples] = size(tmp.analogData);
-            
-            eegDataAll = zeros(numElectrodes, numTrials, numSamples);
-            
-            for i = 1:numElectrodes
-                file = fullfile(folderSegment, ['elec' num2str(electrodes(i)) '.mat']);
-                if exist(file,'file')
-                    D = load(file);
-                    eegDataAll(i,:,:) = D.analogData;
-                end
+        stage = stages{st};
+        
+        folderSegment = fullfile(rootPath, subjectName, ...
+            'EEG', expDate, stage, ...
+            'segmentedData','LFP');
+        
+        if ~exist(folderSegment,'dir'), continue; end
+        
+        %% ===== LOAD DATA =====
+        lfpInfo = load(fullfile(folderSegment,'lfpInfo.mat'));
+        electrodes = lfpInfo.analogChannelsStored;
+        numElectrodes = length(electrodes);
+        
+        tmp = load(fullfile(folderSegment, ['elec' num2str(electrodes(1)) '.mat']));
+        [numTrials, numSamples] = size(tmp.analogData);
+        
+        eegDataAll = zeros(numElectrodes, numTrials, numSamples);
+        
+        for i = 1:numElectrodes
+            file = fullfile(folderSegment, ['elec' num2str(electrodes(i)) '.mat']);
+            if exist(file,'file')
+                D = load(file);
+                eegDataAll(i,:,:) = D.analogData;
             end
-            
-            %% ===== RESHAPE =====
-            data = reshape(eegDataAll, numElectrodes, []);
-            
-            %% ===== FILTER + CAR =====
-            data = filtfilt(b, a, data')';
-            data = data - mean(data,1);
-            
-            %% ===== NORMALIZE =====
-            data = data ./ sqrt(sum(data.^2,1));
-            
-            %% ===== BACKFIT (VECTORIZED) =====
-            corrMat = abs(templates' * data);   % K x T
-            [~, labels] = max(corrMat, [], 1);
-            
-            %% ===== SMOOTH =====
-            labels = smooth_microstates(labels, minSamples);
-            
-            %% ===== STATS =====
-            stats = compute_stats(labels, Fs, K);
-            
-            %% ===== STORE =====
-            results(idx).subject = subjectName;
-            results(idx).stage = stage;
-            results(idx).date = expDate;
-            results(idx).labels = labels;
-            results(idx).stats = stats;
-            
-            idx = idx + 1;
         end
+        
+        %% ===== RESHAPE =====
+        data = reshape(eegDataAll, numElectrodes, []);
+        
+        %% ===== FILTER + CAR =====
+        data = filtfilt(b, a, data')';
+        data = data - mean(data,1);
+        
+        %% ===== NORMALIZE =====
+        data = data ./ sqrt(sum(data.^2,1));
+        
+        %% ===== BACKFIT (VECTORIZED) =====
+        corrMat = abs(templates' * data);   % K x T
+        [~, labels] = max(corrMat, [], 1);
+        
+        %% ===== SMOOTH =====
+        labels = smooth_microstates(labels, minSamples);
+        
+        %% ===== STATS =====
+        stats = compute_stats(labels, Fs, K);
+        
+        %% ===== STORE =====
+        results(idx).subject = subjectName;
+        results(idx).stage = stage;
+        results(idx).date = expDate;
+        results(idx).labels = labels;
+        results(idx).stats = stats;
+        
+        idx = idx + 1;
     end
+
 end
 
 %% ===== SAVE =====
