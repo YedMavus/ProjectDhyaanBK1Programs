@@ -3,7 +3,7 @@
 clc; clear; close all;
 
 %% ===== LOAD MICROSTATE MODEL =====
-load('MicroStateFC/microstate_model.mat');
+load('MicroStateFC/microstate_model_gamma.mat');
 templates = microstate.templates;
 K = microstate.K;
 

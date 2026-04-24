@@ -10,12 +10,39 @@ Fs = 1000;
 kRange = 2:10;
 nrep = 4;   % reduce for speed (paper uses 100)
 
-%% ===== FILTER DESIGN (FAST) =====
-d = designfilt('bandpassfir', ...
-    'FilterOrder', 500, ...
-    'CutoffFrequency1', 0.5, ...
-    'CutoffFrequency2', 45, ...
-    'SampleRate', Fs);
+% %% ===== FILTER DESIGN (FAST) =====
+% d = designfilt('bandpassfir', ...
+%     'FilterOrder', 500, ...
+%     'CutoffFrequency1', 0.5, ...
+%     'CutoffFrequency2', 45, ...
+%     'SampleRate', Fs);
+%% ===== FILTER DESIGN =====
+
+% ---- Stage 1: Broadband cleaning (0.5–45 Hz) ----
+[b1,a1] = butter(4, [0.5 45]/(Fs/2), 'bandpass');
+band = 'gamma';
+% ---- Stage 2: Band-specific ----
+switch band
+
+    case 'alpha'
+        fRange = [8 13];
+
+    case 'gamma'
+        fRange = [30 45];
+
+    case 'broadband'
+        fRange = []; % skip second filter
+
+    otherwise
+        error('Invalid band');
+end
+
+if ~isempty(fRange)
+    [b2,a2] = butter(4, fRange/(Fs/2), 'bandpass');
+end
+
+disp(['Band mode: ', band]);
+
 
 %% ===== STORE SUBJECT TEMPLATES =====
 subjectTemplates = {};
@@ -65,8 +92,20 @@ for s = 1:length(subjects)
         data = reshape(eegDataAll, numElectrodes, []);
         
         %% ===== FILTER + CAR =====
-        data = filtfilt(d, data')';
+        % data = filtfilt(d, data')';
+        %% ===== TWO-STAGE FILTERING =====
+
+        % Stage 1
+        data = filtfilt(b1, a1, data')';
+
+        % CAR
         data = data - mean(data,1);
+
+        % Stage 2 (optional)
+        if ~isempty(fRange)
+            data = filtfilt(b2, a2, data')';
+        end
+        % data = data - mean(data,1);
         
         %% ===== GFP =====
         GFP = std(data,0,1);
@@ -114,7 +153,7 @@ Kfinal = 5; % or choose via KL
 microstate.templates = groupTemplates;
 microstate.K = Kfinal;
 
-save('microstate_model.mat','microstate','-v7.3');
+save('MicroStateFC/microstate_model_gamma.mat','microstate','-v7.3');
 
 disp('DONE: 2-stage clustering complete');
 
