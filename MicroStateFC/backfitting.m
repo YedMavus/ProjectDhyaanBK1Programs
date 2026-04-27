@@ -10,7 +10,7 @@ K = microstate.K;
 %% ===== CONFIG =====
 rootPath = '/Users/suvamdey/Desktop/NSP/data/segmentedData';
 subjects = {'003S','013AR'};
-stages = {'EO1', 'EC1', 'G1', 'M1','G1','EO2', 'EC2', 'M2'};
+stages = {'EO1', 'EC1', 'G1', 'M1','G2','EO2', 'EC2', 'M2'};
 
 Fs = 1000;
 minSamples = round(0.03 * Fs); % 30 ms
