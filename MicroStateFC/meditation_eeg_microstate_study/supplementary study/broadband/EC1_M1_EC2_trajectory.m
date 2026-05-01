@@ -1,8 +1,14 @@
-%% CODE FOR Broadband case: STUDY 1
+%% CODE FOR Broadband case: STUDY 
 clc; clear; close all;
 
 %% ============================================================
-% STUDY 1 — BROADBAND MICROSTATE + GLOBAL wPLI ANALYSIS
+% STUDY  — TRAJECTORY BASED ANALYSIS
+%
+% Corrections applied:
+%   1. CAR applied only once after 0.5-45 Hz bandpass filtering
+%   2. Microstate label smoothing added
+%   3. Minimum microstate duration = 30 ms
+%   4. Smoothed labels are used for Coverage, Duration, and GlobalWPLI
 %
 % Cases supported:
 %   runMode = 'pilot2'  -> 003S control + 013AR meditator
@@ -11,7 +17,13 @@ clc; clear; close all;
 % Pipeline:
 %   load saved subject templates
 %   derive common 5 templates
+%   preprocess EEG:
+%       remove invalid time points
+%       channel-wise demean
+%       0.5-45 Hz bandpass
+%       CAR once
 %   backfit EEG windows using common templates
+%   smooth label sequence with minimum duration = 30 ms
 %   compute:
 %       Coverage_A-E
 %       Duration_A-E
@@ -28,17 +40,17 @@ clc; clear; close all;
 
 %% ===================== CONFIG =====================
 
-% runMode = 'pilot2';   
+% runMode = 'pilot2';
 runMode = 'full10';
 
 bandName = 'broadband';
 
-rootPath = '/Users/anatapmitra/Desktop/NSP project/data/Segmented Data';
-templateRoot = '/Users/anatapmitra/Desktop/NSP project/MicroStateTemplates_fastK5_v2';
-subjectListPath = '/Users/anatapmitra/Desktop/NSP project/BK1AllSubjectList.mat';
-chanlocsPath = '/Users/anatapmitra/Desktop/actiCap64_UOL.mat';
+rootPath = '/Segmented Data';
+templateRoot = '/MicroStateTemplates_fastK5_v3';
+subjectListPath = '/BK1AllSubjectList.mat';
+chanlocsPath = '/actiCap64_UOL.mat';
 
-outputRoot = fullfile('/Users/anatapmitra/Desktop/NSP project/Study1_Broadband_Results', runMode);
+outputRoot = fullfile('/Study1_Broadband_Results_CARonce_Smoothed', runMode);
 
 Fs = 1000;
 numChannels = 64;
@@ -52,6 +64,9 @@ microstateNames = {'A','B','C','D','E'};
 
 windowLengthSec = 30;
 windowLengthSamples = windowLengthSec * Fs;
+
+minMicrostateDurationMs = 30;
+minMicrostateSamples = round((minMicrostateDurationMs / 1000) * Fs);
 
 minSamplesForWPLI = round(1.0 * Fs);  % at least 1 sec samples/state/window
 
@@ -160,6 +175,8 @@ commonModel.groupLabels = groupLabels;
 commonModel.templates = commonTemplates;
 commonModel.K = K;
 commonModel.GEV = commonGEV;
+commonModel.preprocessing = 'Channel demean -> 0.5-45 Hz bandpass -> CAR once';
+commonModel.labelSmoothing = sprintf('Minimum microstate duration = %d ms', minMicrostateDurationMs);
 
 save(fullfile(modelDir, sprintf('commonTemplates_%s_%s.mat', bandName, runMode)), ...
     'commonModel', '-v7.3');
@@ -214,7 +231,9 @@ for s = 1:length(subjects)
             continue;
         end
 
-        data2D = preprocess_broadband(data2D, Fs);
+        % CAR is applied only once inside this function:
+        % after 0.5-45 Hz bandpass filtering.
+        data2D = preprocess_broadband_CAR_once(data2D, Fs);
 
         nTotal = size(data2D, 2);
         nWindows = floor(nTotal / windowLengthSamples);
@@ -228,8 +247,13 @@ for s = 1:length(subjects)
 
             winData = data2D(:, idx1:idx2);
 
-            labels = backfit_microstates(winData, commonTemplates);
+            % Backfit without CAR.
+            labelsRaw = backfit_microstates_no_CAR(winData, commonTemplates);
 
+            % Microstate label smoothing.
+            labels = smooth_microstate_labels(labelsRaw, minMicrostateSamples);
+
+            % Smoothed labels are used for all features.
             [coverage, duration] = compute_temporal_features(labels, K, Fs);
 
             globalWPLI = compute_global_wpli_by_microstate(winData, labels, K, minSamplesForWPLI);
@@ -337,7 +361,6 @@ if strcmp(runMode, 'pilot2')
     save(fullfile(tableDir, sprintf('pilot2_permutation_tests_%s.mat', bandName)), ...
         'permTable', '-v7.3');
 
-%% change here 
 elseif strcmp(runMode, 'full10')
 
     lmmRows = {};
@@ -366,7 +389,6 @@ elseif strcmp(runMode, 'full10')
             LMMTable.Group    = categorical(tmpT.Group(valid));
             LMMTable.Stage    = categorical(tmpT.Stage(valid));
 
-            % Optional: force EC1 as baseline stage and control as baseline group
             LMMTable.Stage = reordercats(LMMTable.Stage, {'EC1','M1','EC2','M2'});
             LMMTable.Group = reordercats(LMMTable.Group, {'control','meditator'});
 
@@ -384,7 +406,6 @@ elseif strcmp(runMode, 'full10')
                     featName, msName, bandName)), ...
                     'lme', 'anovaT', 'LMMTable');
 
-                % anova(lme) may return dataset/table depending on MATLAB version
                 if istable(anovaT)
                     anovaOut = anovaT;
                 else
@@ -522,7 +543,6 @@ end
 
 fprintf('\nDONE Study 1 broadband analysis.\nResults saved at:\n%s\n', outputRoot);
 
-
 %% ============================================================
 % FUNCTIONS
 %% ============================================================
@@ -577,39 +597,119 @@ function data2D = load_stage_eeg_2d(lfpPath, numChannels)
 
 end
 
-
-function data = preprocess_broadband(data, Fs)
+function data = preprocess_broadband_CAR_once(data, Fs)
 
     validTime = all(~isnan(data), 1);
     data = data(:, validTime);
 
+    % Channel-wise demean.
+    % This is NOT CAR.
     data = data - mean(data, 2);
 
+    % 0.5-45 Hz bandpass filtering.
     [b, a] = butter(4, [0.5 45] / (Fs/2), 'bandpass');
     data = filtfilt(b, a, data')';
 
+    % CAR applied only once here.
+    % No CAR before this.
+    % No CAR after this.
     data = data - mean(data, 1);
 
 end
 
-
-function labels = backfit_microstates(data, templates)
+function labels = backfit_microstates_no_CAR(data, templates)
 
     templates = normalize_maps(templates);
 
-    data = data - mean(data, 1);
+    % No CAR here.
+    % The input data has already been CAR-referenced once after filtering.
 
     denom = sqrt(sum(data.^2, 1));
     denom(denom == 0) = eps;
+
     dataNorm = data ./ denom;
 
     corrMat = abs(templates' * dataNorm);
+
     [~, labels] = max(corrMat, [], 1);
 
 end
 
+function labelsOut = smooth_microstate_labels(labelsIn, minSamples)
+
+    labelsOut = labelsIn(:)';
+
+    maxPasses = 3;
+
+    for pass = 1:maxPasses
+
+        labelsBefore = labelsOut;
+
+        N = numel(labelsOut);
+
+        changePoints = [1, find(diff(labelsOut) ~= 0) + 1, N + 1];
+
+        for s = 1:(numel(changePoints)-1)
+
+            startIdx = changePoints(s);
+            endIdx = changePoints(s+1) - 1;
+
+            segLength = endIdx - startIdx + 1;
+
+            if segLength < minSamples
+
+                leftLabel = [];
+                rightLabel = [];
+
+                leftLen = 0;
+                rightLen = 0;
+
+                if s > 1
+                    leftStart = changePoints(s-1);
+                    leftEnd = changePoints(s) - 1;
+
+                    leftLabel = labelsOut(leftEnd);
+                    leftLen = leftEnd - leftStart + 1;
+                end
+
+                if s < numel(changePoints)-1
+                    rightStart = changePoints(s+1);
+                    rightEnd = changePoints(s+2) - 1;
+
+                    rightLabel = labelsOut(rightStart);
+                    rightLen = rightEnd - rightStart + 1;
+                end
+
+                if ~isempty(leftLabel) && ~isempty(rightLabel)
+
+                    if leftLen >= rightLen
+                        labelsOut(startIdx:endIdx) = leftLabel;
+                    else
+                        labelsOut(startIdx:endIdx) = rightLabel;
+                    end
+
+                elseif ~isempty(leftLabel)
+
+                    labelsOut(startIdx:endIdx) = leftLabel;
+
+                elseif ~isempty(rightLabel)
+
+                    labelsOut(startIdx:endIdx) = rightLabel;
+
+                end
+            end
+        end
+
+        if isequal(labelsOut, labelsBefore)
+            break;
+        end
+    end
+
+end
 
 function [coverage, duration] = compute_temporal_features(labels, K, Fs)
+
+    labels = labels(:)';
 
     N = length(labels);
 
@@ -626,6 +726,9 @@ function [coverage, duration] = compute_temporal_features(labels, K, Fs)
             duration(k) = NaN;
         else
             runLengths = runs(:,2) - runs(:,1) + 1;
+
+            % Kept same as original Study 1:
+            % duration is in seconds.
             duration(k) = mean(runLengths) / Fs;
         end
 
@@ -633,10 +736,12 @@ function [coverage, duration] = compute_temporal_features(labels, K, Fs)
 
 end
 
-
 function runs = get_state_runs(labels, stateID)
 
+    labels = labels(:)';
+
     mask = labels == stateID;
+
     d = diff([false, mask, false]);
 
     starts = find(d == 1);
@@ -646,8 +751,9 @@ function runs = get_state_runs(labels, stateID)
 
 end
 
-
 function globalWPLI = compute_global_wpli_by_microstate(data, labels, K, minSamples)
+
+    labels = labels(:)';
 
     nCh = size(data,1);
     globalWPLI = nan(1,K);
@@ -676,7 +782,6 @@ function globalWPLI = compute_global_wpli_by_microstate(data, labels, K, minSamp
     end
 
 end
-
 
 function wpliMat = compute_wpli_matrix_from_phase(phaseData)
 
@@ -710,7 +815,6 @@ function wpliMat = compute_wpli_matrix_from_phase(phaseData)
     wpliMat(1:nCh+1:end) = NaN;
 
 end
-
 
 function [templates, labels, GEV] = microstate_kmeans_fast(maps, K, nrep, maxIter)
 
@@ -780,7 +884,6 @@ function [templates, labels, GEV] = microstate_kmeans_fast(maps, K, nrep, maxIte
 
 end
 
-
 function maps = normalize_maps(maps)
 
     denom = sqrt(sum(maps.^2, 1));
@@ -788,7 +891,6 @@ function maps = normalize_maps(maps)
     maps = maps ./ denom;
 
 end
-
 
 function [pval, obsDiff, effectD] = permutation_test_equalized(x, y, nPerm)
 
@@ -835,7 +937,6 @@ function [pval, obsDiff, effectD] = permutation_test_equalized(x, y, nPerm)
 
 end
 
-
 function plot_common_templates(templates, chanlocs, microstateNames, figTitle, savePath)
 
     K = size(templates,2);
@@ -859,7 +960,6 @@ function plot_common_templates(templates, chanlocs, microstateNames, figTitle, s
     close(fig);
 
 end
-
 
 function plot_trajectory(T, featName, msID, msName, stages, figTitle, savePath)
 
@@ -909,7 +1009,6 @@ function plot_trajectory(T, featName, msID, msName, stages, figTitle, savePath)
 
 end
 
-
 function plot_window_boxplot(T, featName, msID, msName, stages, figTitle, savePath)
 
     subT = T(T.MicrostateID == msID & ismember(T.Stage, stages), :);
@@ -927,7 +1026,6 @@ function plot_window_boxplot(T, featName, msID, msName, stages, figTitle, savePa
     close(fig);
 
 end
-
 
 function plot_change_scores(changeTable, featName, msID, msName, figTitle, savePath)
 
