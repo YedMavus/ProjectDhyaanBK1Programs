@@ -137,4 +137,5 @@ This supplementary study provides a **trajectory-based framework** to study EEG 
 
 > Brain dynamics differ systematically between controls and meditators, reflecting differences in large-scale neural organization rather than just transient state effects.
 
+# For ALPHA-BAND analysis , just use the given codes in this directory and add another bandpadd filtering of (8-13 Hz)
 
