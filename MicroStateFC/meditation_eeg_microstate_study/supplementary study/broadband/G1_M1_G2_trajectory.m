@@ -1,28 +1,37 @@
 %% CODE FOR STUDYING G1->M1->G2 trajectory
-%% CODE FOR Broadband case: STUDY 1A
+%% Broadband case
 % Immediate meditation carryover: G1 -> M1 -> G2
+%
+% Corrections:
+% 1. CAR applied only once after 0.5-45 Hz bandpass filtering.
+% 2. No CAR before filtering.
+% 3. No CAR after filtering.
+% 4. No CAR inside backfitting.
+% 5. Microstate label smoothing added.
+% 6. Minimum microstate duration = 30 ms.
+% 7. Smoothed labels are used for Coverage, Duration, and GlobalWPLI.
 
 clc; clear; close all;
 
 %% ===================== CONFIG =====================
 
-%runMode = 'pilot2';
+% runMode = 'pilot2';
 runMode = 'full10';
 
 bandName = 'broadband';
 
 rootPath = '/Users/anatapmitra/Desktop/NSP project/data/Segmented Data';
-templateRoot = '/Users/anatapmitra/Desktop/NSP project/MicroStateTemplates_fastK5_v2';
+templateRoot = '/Users/anatapmitra/Desktop/NSP project/MicroStateTemplates_fastK5_v3';
 chanlocsPath = '/Users/anatapmitra/Desktop/actiCap64_UOL.mat';
 
-outputRoot = fullfile('/Users/anatapmitra/Desktop/NSP project/Study1_ImmediateCarryover_Broadband_Results', runMode);
+outputRoot = fullfile('/Users/anatapmitra/Desktop/NSP project/Study1_G1_M1_G2_Broadband_Results_CARonce_Smoothed', runMode);
 
 Fs = 1000;
 numChannels = 64;
 
 allStages = {'EO1','EC1','G1','M1','G2','EO2','EC2','M2'};
 
-% Immediate temporal trajectory around first meditation
+% Main Study 2 trajectory
 mainStages = {'G1','M1','G2'};
 trajectoryStages = {'G1','M1','G2'};
 
@@ -31,6 +40,9 @@ microstateNames = {'A','B','C','D','E'};
 
 windowLengthSec = 30;
 windowLengthSamples = windowLengthSec * Fs;
+
+minMicrostateDurationMs = 30;
+minMicrostateSamples = round((minMicrostateDurationMs / 1000) * Fs);
 
 minSamplesForWPLI = round(1.0 * Fs);
 nPerm = 5000;
@@ -128,13 +140,15 @@ commonModel.groupLabels = groupLabels;
 commonModel.templates = commonTemplates;
 commonModel.K = K;
 commonModel.GEV = commonGEV;
-commonModel.study = 'Immediate carryover around meditation: G1-M1-G2';
+commonModel.study = 'Study2 immediate carryover around meditation: G1-M1-G2';
+commonModel.preprocessing = 'Channel demean -> 0.5-45 Hz bandpass -> CAR once';
+commonModel.labelSmoothing = sprintf('Minimum microstate duration = %d ms', minMicrostateDurationMs);
 
 save(fullfile(modelDir, sprintf('commonTemplates_%s_%s_immediateCarryover.mat', bandName, runMode)), ...
     'commonModel', '-v7.3');
 
 plot_common_templates(commonTemplates, chanlocs, microstateNames, ...
-    sprintf('Common %s templates | %s | Immediate Carryover', bandName, runMode), ...
+    sprintf('Common %s templates | %s | G1-M1-G2 Carryover', bandName, runMode), ...
     fullfile(figDir, sprintf('common_templates_%s_%s_immediateCarryover.png', bandName, runMode)));
 
 %% ============================================================
@@ -183,7 +197,9 @@ for s = 1:length(subjects)
             continue;
         end
 
-        data2D = preprocess_broadband(data2D, Fs);
+        % CAR is applied only once inside this function:
+        % after 0.5-45 Hz bandpass filtering.
+        data2D = preprocess_broadband_CAR_once(data2D, Fs);
 
         nTotal = size(data2D, 2);
         nWindows = floor(nTotal / windowLengthSamples);
@@ -197,8 +213,13 @@ for s = 1:length(subjects)
 
             winData = data2D(:, idx1:idx2);
 
-            labels = backfit_microstates(winData, commonTemplates);
+            % Backfit without CAR.
+            labelsRaw = backfit_microstates_no_CAR(winData, commonTemplates);
 
+            % 30 ms minimum-duration smoothing.
+            labels = smooth_microstate_labels(labelsRaw, minMicrostateSamples);
+
+            % Smoothed labels are used for all features.
             [coverage, duration] = compute_temporal_features(labels, K, Fs);
 
             globalWPLI = compute_global_wpli_by_microstate(winData, labels, K, minSamplesForWPLI);
@@ -486,7 +507,7 @@ for f = 1:length(features)
     end
 end
 
-fprintf('\nDONE Study 1A broadband immediate carryover analysis.\nResults saved at:\n%s\n', outputRoot);
+fprintf('\nDONE Study 2 broadband G1-M1-G2 immediate carryover analysis.\nResults saved at:\n%s\n', outputRoot);
 
 
 %% ============================================================
@@ -544,29 +565,37 @@ function data2D = load_stage_eeg_2d(lfpPath, numChannels)
 end
 
 
-function data = preprocess_broadband(data, Fs)
+function data = preprocess_broadband_CAR_once(data, Fs)
 
     validTime = all(~isnan(data), 1);
     data = data(:, validTime);
 
+    % Channel-wise demean.
+    % This is NOT CAR.
     data = data - mean(data, 2);
 
+    % 0.5-45 Hz bandpass filtering.
     [b, a] = butter(4, [0.5 45] / (Fs/2), 'bandpass');
     data = filtfilt(b, a, data')';
 
+    % CAR applied only once here.
+    % No CAR before this.
+    % No CAR after this.
     data = data - mean(data, 1);
 
 end
 
 
-function labels = backfit_microstates(data, templates)
+function labels = backfit_microstates_no_CAR(data, templates)
 
     templates = normalize_maps(templates);
 
-    data = data - mean(data, 1);
+    % No CAR here.
+    % Data was already CAR-referenced once after 0.5-45 Hz filtering.
 
     denom = sqrt(sum(data.^2, 1));
     denom(denom == 0) = eps;
+
     dataNorm = data ./ denom;
 
     corrMat = abs(templates' * dataNorm);
@@ -575,7 +604,79 @@ function labels = backfit_microstates(data, templates)
 end
 
 
+function labelsOut = smooth_microstate_labels(labelsIn, minSamples)
+
+    labelsOut = labelsIn(:)';
+
+    maxPasses = 3;
+
+    for pass = 1:maxPasses
+
+        labelsBefore = labelsOut;
+
+        N = numel(labelsOut);
+        changePoints = [1, find(diff(labelsOut) ~= 0) + 1, N + 1];
+
+        for s = 1:(numel(changePoints)-1)
+
+            startIdx = changePoints(s);
+            endIdx = changePoints(s+1) - 1;
+
+            segLength = endIdx - startIdx + 1;
+
+            if segLength < minSamples
+
+                leftLabel = [];
+                rightLabel = [];
+
+                leftLen = 0;
+                rightLen = 0;
+
+                if s > 1
+                    leftStart = changePoints(s-1);
+                    leftEnd = changePoints(s) - 1;
+                    leftLabel = labelsOut(leftEnd);
+                    leftLen = leftEnd - leftStart + 1;
+                end
+
+                if s < numel(changePoints)-1
+                    rightStart = changePoints(s+1);
+                    rightEnd = changePoints(s+2) - 1;
+                    rightLabel = labelsOut(rightStart);
+                    rightLen = rightEnd - rightStart + 1;
+                end
+
+                if ~isempty(leftLabel) && ~isempty(rightLabel)
+
+                    if leftLen >= rightLen
+                        labelsOut(startIdx:endIdx) = leftLabel;
+                    else
+                        labelsOut(startIdx:endIdx) = rightLabel;
+                    end
+
+                elseif ~isempty(leftLabel)
+
+                    labelsOut(startIdx:endIdx) = leftLabel;
+
+                elseif ~isempty(rightLabel)
+
+                    labelsOut(startIdx:endIdx) = rightLabel;
+
+                end
+            end
+        end
+
+        if isequal(labelsOut, labelsBefore)
+            break;
+        end
+    end
+
+end
+
+
 function [coverage, duration] = compute_temporal_features(labels, K, Fs)
+
+    labels = labels(:)';
 
     N = length(labels);
 
@@ -592,6 +693,8 @@ function [coverage, duration] = compute_temporal_features(labels, K, Fs)
             duration(k) = NaN;
         else
             runLengths = runs(:,2) - runs(:,1) + 1;
+
+            % Duration preserved in seconds, same as original code.
             duration(k) = mean(runLengths) / Fs;
         end
 
@@ -601,6 +704,8 @@ end
 
 
 function runs = get_state_runs(labels, stateID)
+
+    labels = labels(:)';
 
     mask = labels == stateID;
     d = diff([false, mask, false]);
@@ -614,6 +719,8 @@ end
 
 
 function globalWPLI = compute_global_wpli_by_microstate(data, labels, K, minSamples)
+
+    labels = labels(:)';
 
     nCh = size(data,1);
     globalWPLI = nan(1,K);
