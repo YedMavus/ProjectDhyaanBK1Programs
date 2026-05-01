@@ -1,7 +1,7 @@
 # Stage-wise Alpha-band Microstate Analysis  
 ## State-specific microstate signatures in meditators vs controls
 
-This study is conducted on **alpha-band (8–12 Hz) microstate templates**.
+This study is conducted on **alpha-band (8–13 Hz) microstate templates**.
 
 ---
 
